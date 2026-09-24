@@ -62,12 +62,7 @@ body {
 #board2 { top: 58.5%; height: 10%; }
 #board3 { top: 70.3%; height: 8%; }
 .board-label {
-  display: block;
-  font-size: 2.6vw;
-  font-weight: normal;
-  color: #6b4a24;
-  letter-spacing: 2px;
-  margin-bottom: 1px;
+  display: none; /* 不顯示表頭文字，只顯示數值本身 */
 }
 .board-panel {
   display: inline-block;
@@ -88,22 +83,35 @@ body {
 }
 #stage.filled .board-text { opacity: 1; }
 
-/* 底部 SN 顯示列（兩張圖都有預留的白色橫條） */
-#sn-display {
+/* 底部 SN 輸入框：直接疊在圖片預留的白色橫條上，刷入/輸入/顯示都在同一格 */
+#sn-input {
   position: absolute;
   left: 22%;
-  right: 16.5%;
+  width: 60%;
   top: 93.6%;
   height: 4.4%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border: none;
+  background: transparent;
   font-weight: bold;
   letter-spacing: 1px;
   color: #111;
   font-size: 3.2vw;
-  overflow: hidden;
-  white-space: nowrap;
+  padding: 0 1%;
+  text-align: left;
+}
+#sn-input:focus { outline: none; background: rgba(255,255,150,0.3); }
+.btn-cam-onstage {
+  position: absolute;
+  left: 84%;
+  width: 14%;
+  top: 92.8%;
+  height: 5.2%;
+  background: #00bcd4;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 2.3vw;
+  padding: 0;
 }
 
 /* NG 狀態下的查無資料提示（疊在圖片中段空白處） */
@@ -130,27 +138,6 @@ body {
   max-width: 480px;
   margin: 14px auto 0;
   padding: 0 10px 20px;
-}
-.input-with-btn {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-#sn-input {
-  flex: 1;
-  padding: 12px;
-  font-size: 18px;
-  border-radius: 8px;
-  border: 1px solid #999;
-}
-.btn-cam-inline {
-  background: #00bcd4;
-  color: white;
-  border: none;
-  padding: 12px 14px;
-  font-size: 15px;
-  border-radius: 8px;
-  white-space: nowrap;
 }
 #btn-query {
   width: 100%;
@@ -243,15 +230,16 @@ body {
       <span class="board-panel"><span id="board3-val" class="board-value"></span></span>
     </div>
     <div id="ng-msg">查無資料</div>
-    <div id="sn-display"></div>
+
+    <!-- SN 輸入框直接疊在圖片預留的白色橫條上：可手動輸入，也可用旁邊相機按鈕掃描 -->
+    <input type="text" id="sn-input" placeholder="請刷入或輸入SN" autocomplete="off"
+           oninput="autoSizeSNInput(this.value)"
+           onkeydown="if(event.key==='Enter'){ event.preventDefault(); queryBySN(); }"
+           onfocus="this.select()">
+    <button type="button" class="btn-cam-onstage" onclick="openCameraModal('sn-input')">📷</button>
   </div>
 
   <div id="input-panel">
-    <div class="input-with-btn">
-      <input type="text" id="sn-input" placeholder="請刷入或輸入 SN 序號" autocomplete="off"
-             onkeydown="if(event.key==='Enter'){ event.preventDefault(); queryBySN(); }">
-      <button type="button" class="btn-cam-inline" onclick="openCameraModal('sn-input')">📷 相機</button>
-    </div>
     <button type="button" id="btn-query" onclick="queryBySN()">查詢</button>
     <div id="status-line"></div>
   </div>
@@ -328,6 +316,18 @@ function fitTextToWidth(el, maxFontVwBase) {
   }
 }
 
+// SN 輸入框（疊在圖片上）依字數多寡自動縮小字級，避免長序號爆版
+function autoSizeSNInput(text) {
+  const el = document.getElementById('sn-input');
+  const len = String(text || '').length;
+  let vw;
+  if (len <= 12) vw = 3.2;
+  else if (len <= 18) vw = 2.6;
+  else if (len <= 24) vw = 2.1;
+  else vw = 1.7;
+  el.style.fontSize = vw + 'vw';
+}
+
 function refitAllBoards() {
   requestAnimationFrame(() => {
     ['board1-val', 'board2-val', 'board3-val'].forEach(id => {
@@ -335,14 +335,6 @@ function refitAllBoards() {
       el.style.fontSize = ''; // 先重設回 CSS 預設值再重新量測
       fitTextToWidth(el);
     });
-    const snEl = document.getElementById('sn-display');
-    let fontPx = parseFloat(getComputedStyle(snEl).fontSize);
-    let guard = 0;
-    while (snEl.scrollWidth > snEl.clientWidth - 6 && fontPx > 9 && guard < 40) {
-      fontPx -= 1;
-      snEl.style.fontSize = fontPx + 'px';
-      guard++;
-    }
   });
 }
 
@@ -353,8 +345,6 @@ function showBoards(warehouse, partNo, qty, sn) {
   document.getElementById('board1-val').innerText = warehouse;
   document.getElementById('board2-val').innerText = partNo;
   document.getElementById('board3-val').innerText = (qty === '' || qty === null || qty === undefined) ? '-' : qty;
-  document.getElementById('sn-display').style.fontSize = '';
-  document.getElementById('sn-display').innerText = sn;
   stage.classList.add('filled');
   refitAllBoards();
 }
@@ -363,10 +353,7 @@ function showNG(sn) {
   const stage = document.getElementById('stage');
   stage.classList.remove('state-ok');
   stage.classList.add('state-ng');
-  document.getElementById('sn-display').style.fontSize = '';
-  document.getElementById('sn-display').innerText = sn;
   stage.classList.add('filled');
-  refitAllBoards();
 }
 
 function queryBySN() {
@@ -376,6 +363,8 @@ function queryBySN() {
     setStatus('請先輸入或刷入 SN！', '#ffcc80');
     return;
   }
+  input.value = sn;
+  autoSizeSNInput(sn);
   setStatus('查詢中...', '#ddd');
   const btn = document.getElementById('btn-query');
   btn.disabled = true;
@@ -394,8 +383,7 @@ function queryBySN() {
         showNG(res.sn);
         setStatus('❌ 查無此 SN 對應的資料', '#ff8a80');
       }
-      input.value = '';
-      input.focus();
+      // SN 保留顯示在圖片上的輸入框中，方便核對；下一次刷入/輸入會自動覆蓋
     })
     .catch(function(err) {
       btn.disabled = false;
